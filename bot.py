@@ -5,11 +5,20 @@ import requests
 from datetime import datetime
 from langdetect import detect
 import config
+from googletrans import Translator
 
 # Endpoint for sending the POST request
 post_url = 'http://localhost:8080/v2/send'
 registered_number = config.registered_number
 recipient_number = config.recipient_number
+
+def translate_text(text, src_lang='auto', dest_lang='en'):
+    translator = Translator()
+    try:
+        translated = translator.translate(text, src=src_lang, dest=dest_lang)
+        return translated.text
+    except Exception as e:
+        return f"An error occurred: {e}"
 
 def get_largest_update_id(db_name):
     try:
@@ -318,6 +327,7 @@ extracted_data = extract_details(data)
 # Insert data into SQLite database
 insert_data_into_db(database_file, extracted_data)
 
+
 # Print new updates
 if extracted_data["updates"]:
     for update in extracted_data["updates"]:
@@ -332,7 +342,8 @@ if extracted_data["updates"]:
             date, text, message_language = result
             post_data = {
                 # "message": f"Update ID: {update_id}, Date: {datetime.fromtimestamp(date)}, Text: {text}",
-                "message": f"Update ID: {update_id}, Date: {datetime.fromtimestamp(date)}, Language: {message_language}, Text: {text}",
+                # "message": f"Update ID: {update_id}, Date: {datetime.fromtimestamp(date)}, Language: {message_language}, Text: {text}",
+                "message": f"Update ID: {update_id}, Date: {datetime.fromtimestamp(date)}, Language: {message_language}, Orginal text: {text}, Translated text: {translate_text(text, src_lang=message_language, dest_lang='lv')}",
                 "number": registered_number,
                 "recipients": [recipient_number]
             }
