@@ -3,6 +3,7 @@ import sqlite3
 import json
 import requests
 from datetime import datetime
+from langdetect import detect
 import config
 
 # Endpoint for sending the POST request
@@ -65,6 +66,7 @@ def check_and_create_db(db_name):
                     chat_id INTEGER,
                     date INTEGER,
                     text TEXT,
+                    message_language TEXT,
                     caption TEXT,
                     caption_entities TEXT,
                     forward_origin_type TEXT,
@@ -151,6 +153,7 @@ def extract_details(json_data):
             chat = message.get("chat")
             date = message.get("date")
             text = message.get("text")
+            message_language = detect(text) if text else 'unknown'
             caption = message.get("caption")
             caption_entities = json.dumps(message.get("caption_entities", []))
             forward_origin_type = message.get("forward_from_chat", {}).get("type")
@@ -195,6 +198,7 @@ def extract_details(json_data):
                 chat.get("id") if chat else None,
                 date,
                 text,
+                message_language,
                 caption,
                 caption_entities,
                 forward_origin_type,
@@ -262,8 +266,8 @@ def insert_data_into_db(db_name, data):
         VALUES (?, ?, ?, ?)
         '''
         message_query = '''
-        INSERT OR IGNORE INTO messages (message_id, from_user_id, chat_id, date, text, caption, caption_entities, forward_origin_type, forward_from_user_id, forward_from_chat_id, forward_from_message_id, forward_signature, forward_date, video_duration, video_width, video_height, video_file_name, video_mime_type, video_thumbnail_file_id, video_file_id, video_file_unique_id, video_file_size) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO messages (message_id, from_user_id, chat_id, date, text, message_language, caption, caption_entities, forward_origin_type, forward_from_user_id, forward_from_chat_id, forward_from_message_id, forward_signature, forward_date, video_duration, video_width, video_height, video_file_name, video_mime_type, video_thumbnail_file_id, video_file_id, video_file_unique_id, video_file_size) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         '''
         # entity_query = '''
         # INSERT OR IGNORE INTO entities (entity_id, message_id, offset, length, type, url) 
@@ -321,12 +325,14 @@ if extracted_data["updates"]:
         message_id = update[1]
         conn = sqlite3.connect(database_file)
         cursor = conn.cursor()
-        cursor.execute("SELECT date, text FROM messages WHERE message_id = ?", (message_id,))
+        cursor.execute("SELECT date, text, message_language FROM messages WHERE message_id = ?", (message_id,))
         result = cursor.fetchone()
         if result:
-            date, text = result
+            # date, text = result
+            date, text, message_language = result
             post_data = {
-                "message": f"Update ID: {update_id}, Date: {datetime.fromtimestamp(date)}, Text: {text}",
+                # "message": f"Update ID: {update_id}, Date: {datetime.fromtimestamp(date)}, Text: {text}",
+                "message": f"Update ID: {update_id}, Date: {datetime.fromtimestamp(date)}, Language: {message_language}, Text: {text}",
                 "number": registered_number,
                 "recipients": [recipient_number]
             }
@@ -335,6 +341,3 @@ if extracted_data["updates"]:
         conn.close()
 else:
     print("No new updates found.")
-
-
-
