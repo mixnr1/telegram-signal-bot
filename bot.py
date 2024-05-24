@@ -3,15 +3,14 @@ import sqlite3
 import json
 import requests
 from datetime import datetime
+import langdetect
 from langdetect import detect
 import config
 from googletrans import Translator
-
 # Endpoint for sending the POST request
 post_url = 'http://localhost:8080/v2/send'
 registered_number = config.registered_number
 recipient_number = config.recipient_number
-
 def translate_text(text, src_lang='auto', dest_lang='en'):
     translator = Translator()
     try:
@@ -19,7 +18,6 @@ def translate_text(text, src_lang='auto', dest_lang='en'):
         return translated.text
     except Exception as e:
         return f"An error occurred: {e}"
-
 def get_largest_update_id(db_name):
     try:
         conn = sqlite3.connect(db_name)
@@ -27,23 +25,18 @@ def get_largest_update_id(db_name):
         query = '''
         SELECT MAX(update_id) FROM updates
         '''
-
         cursor.execute(query)
-        result = cursor.fetchone()
-        
+        result = cursor.fetchone()     
         if result and result[0] is not None:
             return result[0]
         else:
             return 0  # Default value if no update_id is found
-
     except sqlite3.Error as e:
         print(f"An error occurred: {e}")
         return None
-
     finally:
         if conn:
             conn.close()
-
 def check_and_create_db(db_name):
     if not os.path.exists(db_name):
         try:
@@ -129,15 +122,12 @@ def check_and_create_db(db_name):
                 #     FOREIGN KEY (message_id) REFERENCES messages(message_id)
                 # );
                 # '''
-            ]
-            
+            ]          
             for query in create_table_queries:
                 conn.execute(query)
             print("Tables created successfully.")
-
         except sqlite3.Error as e:
-            print(f"An error occurred: {e}")
-        
+            print(f"An error occurred: {e}")    
         finally:
             if conn:
                 conn.close()
@@ -145,123 +135,226 @@ def check_and_create_db(db_name):
         print(f"Database '{db_name}' already exists.")
 
 def extract_details(json_data):
-    users = []
-    chats = []
-    messages = []
-    # entities = []
-    updates = []
-    # photos = []
-
-    for update in json_data.get("result", []):
-        update_id = update.get("update_id")
-        message = update.get("message")
-        
-        if message:
-            message_id = message.get("message_id")
-            from_user = message.get("from")
-            chat = message.get("chat")
-            date = message.get("date")
-            text = message.get("text")
-            message_language = detect(text) if text else 'unknown'
-            caption = message.get("caption")
-            caption_entities = json.dumps(message.get("caption_entities", []))
-            forward_origin_type = message.get("forward_from_chat", {}).get("type")
-            forward_from_user_id = message.get("forward_from", {}).get("id")
-            forward_from_chat_id = message.get("forward_from_chat", {}).get("id")
-            forward_from_message_id = message.get("forward_from_message_id")
-            forward_signature = message.get("forward_signature")
-            forward_date = message.get("forward_date")
-            video_duration = message.get("video", {}).get("duration")
-            video_width = message.get("video", {}).get("width")
-            video_height = message.get("video", {}).get("height")
-            video_file_name = message.get("video", {}).get("file_name")
-            video_mime_type = message.get("video", {}).get("mime_type")
-            video_thumbnail_file_id = message.get("video", {}).get("thumb", {}).get("file_id")
-            video_file_id = message.get("video", {}).get("file_id")
-            video_file_unique_id = message.get("video", {}).get("file_unique_id")
-            video_file_size = message.get("video", {}).get("file_size")
-            # entities_list = message.get("entities", [])
-            # photo_list = message.get("photo", [])
-
-            if from_user:
-                users.append((
-                    from_user.get("id"),
-                    from_user.get("is_bot"),
-                    from_user.get("first_name"),
-                    from_user.get("last_name"),
-                    from_user.get("username"),
-                    from_user.get("language_code")
-                ))
+    try:
+        users = []
+        chats = []
+        messages = []
+        # entities = []
+        updates = []
+        # photos = []
+        for update in json_data.get("result", []):
+            update_id = update.get("update_id")
+            message = update.get("message")
             
-            if chat:
-                chats.append((
-                    chat.get("id"),
-                    chat.get("title"),
-                    chat.get("type"),
-                    chat.get("all_members_are_administrators")
-                ))
-            
-            messages.append((
-                message_id,
-                from_user.get("id") if from_user else None,
-                chat.get("id") if chat else None,
-                date,
-                text,
-                message_language,
-                caption,
-                caption_entities,
-                forward_origin_type,
-                forward_from_user_id,
-                forward_from_chat_id,
-                forward_from_message_id,
-                forward_signature,
-                forward_date,
-                video_duration,
-                video_width,
-                video_height,
-                video_file_name,
-                video_mime_type,
-                video_thumbnail_file_id,
-                video_file_id,
-                video_file_unique_id,
-                video_file_size
-            ))
-            
-            # for entity in entities_list:
-            #     entities.append((
-            #         None,
-            #         message_id,
-            #         entity.get("offset"),
-            #         entity.get("length"),
-            #         entity.get("type"),
-            #         entity.get("url")
-            #     ))
-            
-            # for photo in photo_list:
-            #     photos.append((
-            #         None,
-            #         message_id,
-            #         photo.get("file_id"),
-            #         photo.get("file_unique_id"),
-            #         photo.get("file_size"),
-            #         photo.get("width"),
-            #         photo.get("height")
-            #     ))
-            
-            updates.append((
-                update_id,
-                message_id
-            ))
-    
-    return {
-        "users": users,
-        "chats": chats,
-        "messages": messages,
-        # "entities": entities,
-        "updates": updates
-        # "photos": photos
-    }
-
+            if message:
+                message_id = message.get("message_id")
+                from_user = message.get("from")
+                chat = message.get("chat")
+                date = message.get("date")
+                text = message.get("text")
+                message_language = detect(text) if text else 'unknown'
+                caption = message.get("caption")
+                caption_entities = json.dumps(message.get("caption_entities", []))
+                forward_origin_type = message.get("forward_from_chat", {}).get("type")
+                forward_from_user_id = message.get("forward_from", {}).get("id")
+                forward_from_chat_id = message.get("forward_from_chat", {}).get("id")
+                forward_from_message_id = message.get("forward_from_message_id")
+                forward_signature = message.get("forward_signature")
+                forward_date = message.get("forward_date")
+                video_duration = message.get("video", {}).get("duration")
+                video_width = message.get("video", {}).get("width")
+                video_height = message.get("video", {}).get("height")
+                video_file_name = message.get("video", {}).get("file_name")
+                video_mime_type = message.get("video", {}).get("mime_type")
+                video_thumbnail_file_id = message.get("video", {}).get("thumb", {}).get("file_id")
+                video_file_id = message.get("video", {}).get("file_id")
+                video_file_unique_id = message.get("video", {}).get("file_unique_id")
+                video_file_size = message.get("video", {}).get("file_size")
+                # entities_list = message.get("entities", [])
+                # photo_list = message.get("photo", [])
+                if from_user:
+                    users.append((
+                        from_user.get("id"),
+                        from_user.get("is_bot"),
+                        from_user.get("first_name"),
+                        from_user.get("last_name"),
+                        from_user.get("username"),
+                        from_user.get("language_code")
+                    ))
+                
+                if chat:
+                    chats.append((
+                        chat.get("id"),
+                        chat.get("title"),
+                        chat.get("type"),
+                        chat.get("all_members_are_administrators")
+                    ))              
+                messages.append((
+                    message_id,
+                    from_user.get("id") if from_user else None,
+                    chat.get("id") if chat else None,
+                    date,
+                    text,
+                    message_language,
+                    caption,
+                    caption_entities,
+                    forward_origin_type,
+                    forward_from_user_id,
+                    forward_from_chat_id,
+                    forward_from_message_id,
+                    forward_signature,
+                    forward_date,
+                    video_duration,
+                    video_width,
+                    video_height,
+                    video_file_name,
+                    video_mime_type,
+                    video_thumbnail_file_id,
+                    video_file_id,
+                    video_file_unique_id,
+                    video_file_size
+                ))               
+                # for entity in entities_list:
+                #     entities.append((
+                #         None,
+                #         message_id,
+                #         entity.get("offset"),
+                #         entity.get("length"),
+                #         entity.get("type"),
+                #         entity.get("url")
+                #     ))
+                
+                # for photo in photo_list:
+                #     photos.append((
+                #         None,
+                #         message_id,
+                #         photo.get("file_id"),
+                #         photo.get("file_unique_id"),
+                #         photo.get("file_size"),
+                #         photo.get("width"),
+                #         photo.get("height")
+                #     ))              
+                updates.append((
+                    update_id,
+                    message_id
+                ))     
+        return {
+            "users": users,
+            "chats": chats,
+            "messages": messages,
+            # "entities": entities,
+            "updates": updates
+            # "photos": photos
+        }
+    except langdetect.lang_detect_exception.LangDetectException as e:
+        users = []
+        chats = []
+        messages = []
+        # entities = []
+        updates = []
+        # photos = []
+        for update in json_data.get("result", []):
+            update_id = update.get("update_id")
+            message = update.get("message")       
+            if message:
+                message_id = message.get("message_id")
+                from_user = message.get("from")
+                chat = message.get("chat")
+                date = message.get("date")
+                text = message.get("text")
+                message_language = 'unknown'
+                caption = message.get("caption")
+                caption_entities = json.dumps(message.get("caption_entities", []))
+                forward_origin_type = message.get("forward_from_chat", {}).get("type")
+                forward_from_user_id = message.get("forward_from", {}).get("id")
+                forward_from_chat_id = message.get("forward_from_chat", {}).get("id")
+                forward_from_message_id = message.get("forward_from_message_id")
+                forward_signature = message.get("forward_signature")
+                forward_date = message.get("forward_date")
+                video_duration = message.get("video", {}).get("duration")
+                video_width = message.get("video", {}).get("width")
+                video_height = message.get("video", {}).get("height")
+                video_file_name = message.get("video", {}).get("file_name")
+                video_mime_type = message.get("video", {}).get("mime_type")
+                video_thumbnail_file_id = message.get("video", {}).get("thumb", {}).get("file_id")
+                video_file_id = message.get("video", {}).get("file_id")
+                video_file_unique_id = message.get("video", {}).get("file_unique_id")
+                video_file_size = message.get("video", {}).get("file_size")
+                # entities_list = message.get("entities", [])
+                # photo_list = message.get("photo", [])
+                if from_user:
+                    users.append((
+                        from_user.get("id"),
+                        from_user.get("is_bot"),
+                        from_user.get("first_name"),
+                        from_user.get("last_name"),
+                        from_user.get("username"),
+                        from_user.get("language_code")
+                    ))              
+                if chat:
+                    chats.append((
+                        chat.get("id"),
+                        chat.get("title"),
+                        chat.get("type"),
+                        chat.get("all_members_are_administrators")
+                    ))              
+                messages.append((
+                    message_id,
+                    from_user.get("id") if from_user else None,
+                    chat.get("id") if chat else None,
+                    date,
+                    text,
+                    message_language,
+                    caption,
+                    caption_entities,
+                    forward_origin_type,
+                    forward_from_user_id,
+                    forward_from_chat_id,
+                    forward_from_message_id,
+                    forward_signature,
+                    forward_date,
+                    video_duration,
+                    video_width,
+                    video_height,
+                    video_file_name,
+                    video_mime_type,
+                    video_thumbnail_file_id,
+                    video_file_id,
+                    video_file_unique_id,
+                    video_file_size
+                ))               
+                # for entity in entities_list:
+                #     entities.append((
+                #         None,
+                #         message_id,
+                #         entity.get("offset"),
+                #         entity.get("length"),
+                #         entity.get("type"),
+                #         entity.get("url")
+                #     ))
+                
+                # for photo in photo_list:
+                #     photos.append((
+                #         None,
+                #         message_id,
+                #         photo.get("file_id"),
+                #         photo.get("file_unique_id"),
+                #         photo.get("file_size"),
+                #         photo.get("width"),
+                #         photo.get("height")
+                #     ))              
+                updates.append((
+                    update_id,
+                    message_id
+                ))       
+        return {
+            "users": users,
+            "chats": chats,
+            "messages": messages,
+            # "entities": entities,
+            "updates": updates
+            # "photos": photos
+        }
 def insert_data_into_db(db_name, data):
     try:
         conn = sqlite3.connect(db_name)
@@ -302,32 +395,22 @@ def insert_data_into_db(db_name, data):
     finally:
         if conn:
             conn.close()
-
 # Define the database file name
 database_file = 'telegram.db'
-
 # Call the function to check and create the database
 check_and_create_db(database_file)
-
 # Get the largest update_id
 largest_update_id = get_largest_update_id(database_file)
-
 # Set up the base URL for the Telegram API with the token from config
 baseURL = f"https://api.telegram.org/bot{config.token_API}/getUpdates?offset={largest_update_id + 1}"
-
 # Send the GET request to the Telegram API
 resp = requests.get(baseURL)
-
 # Parse the JSON response
 data = resp.json()
-
 # Extract details from JSON
 extracted_data = extract_details(data)
-
 # Insert data into SQLite database
 insert_data_into_db(database_file, extracted_data)
-
-
 # Print new updates
 if extracted_data["updates"]:
     for update in extracted_data["updates"]:
@@ -340,15 +423,22 @@ if extracted_data["updates"]:
         if result:
             # date, text = result
             date, text, message_language = result
-            post_data = {
-                # "message": f"Update ID: {update_id}, Date: {datetime.fromtimestamp(date)}, Text: {text}",
-                # "message": f"Update ID: {update_id}, Date: {datetime.fromtimestamp(date)}, Language: {message_language}, Text: {text}",
-                "message": f"Update ID: {update_id}, Date: {datetime.fromtimestamp(date)}, Language: {message_language}, Orginal text: {text}, Translated text: {translate_text(text, src_lang=message_language, dest_lang='lv')}",
-                "number": registered_number,
-                "recipients": [recipient_number]
-            }
-            post_data_json = json.dumps(post_data, ensure_ascii=False).encode('utf-8')
-            post_resp = requests.post(post_url, headers={"Content-Type": "application/json"}, data=post_data_json)
+            if message_language == "unknown":
+                post_data = {
+                    "message": f"Update ID: {update_id} | Date: {datetime.fromtimestamp(date)} | Orginal: {text}",
+                    "number": registered_number,
+                    "recipients": [recipient_number]
+                }
+                post_data_json = json.dumps(post_data, ensure_ascii=False).encode('utf-8')
+                post_resp = requests.post(post_url, headers={"Content-Type": "application/json"}, data=post_data_json)
+            else:
+                post_data = {
+                    "message": f"Update ID: {update_id} | Date: {datetime.fromtimestamp(date)} | Language: {message_language} | Orginal: {text} | Translated: {translate_text(text, src_lang=message_language, dest_lang='lv')}",
+                    "number": registered_number,
+                    "recipients": [recipient_number]
+                }
+                post_data_json = json.dumps(post_data, ensure_ascii=False).encode('utf-8')
+                post_resp = requests.post(post_url, headers={"Content-Type": "application/json"}, data=post_data_json)
         conn.close()
 else:
     print("No new updates found.")
